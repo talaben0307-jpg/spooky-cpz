@@ -1,5 +1,5 @@
 --[[
-    CPZ Menu / JJS Halloween Event Hub (Standalone, No Key System)
+    CPZ Menu / JJS Halloween Event Hub (Standalone, No Key System - Fixed)
 ]]
 
 local Players = game:GetService("Players")
@@ -40,7 +40,6 @@ env.JJSHalloweenCleanup = function()
     env.JJSHalloweenCleanup = nil
 end
 
--- ===== Chủ đề Halloween Theme (Cam bí ngô & Đen ma quái) =====
 local Theme = {
     Background = Color3.fromRGB(15, 12, 10),
     Panel = Color3.fromRGB(25, 18, 14),
@@ -236,7 +235,7 @@ function Library:Notify(cfg)
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.GothamBold,
-            Text = "🎃 " .. (cfg.Title || "Thông báo"),
+            Text = "🎃 " .. (cfg.Title or "Thông báo"),
             TextSize = 13,
             TextColor3 = Theme.Accent,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -247,7 +246,7 @@ function Library:Notify(cfg)
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             Font = Enum.Font.Gotham,
-            Text = cfg.Content || "",
+            Text = cfg.Content or "",
             TextSize = 12,
             TextWrapped = true,
             TextColor3 = Theme.Text,
@@ -255,7 +254,7 @@ function Library:Notify(cfg)
         }),
     })
     tween(card, 0.25, { GroupTransparency = 0 })
-    task.delay(cfg.Duration || 3, function()
+    task.delay(cfg.Duration or 3, function()
         if card.Parent then
             tween(card, 0.3, { GroupTransparency = 1 }).Completed:Wait()
             card:Destroy()
@@ -264,10 +263,10 @@ function Library:Notify(cfg)
 end
 
 function Library:CreateWindow(cfg)
-    cfg = cfg || {}
-    local title = cfg.Title || "JJS Halloween Hub"
-    local subTitle = cfg.SubTitle || "Spooky Edition"
-    local menuKey = cfg.MenuKey || Enum.KeyCode.F
+    cfg = cfg or {}
+    local title = cfg.Title or "JJS Halloween Hub"
+    local subTitle = cfg.SubTitle or "Spooky Edition"
+    local menuKey = cfg.MenuKey or Enum.KeyCode.F
 
     local visible = true
     local visToken = 0
@@ -325,7 +324,7 @@ function Library:CreateWindow(cfg)
         corner(14),
     })
     
-    local divider = create("Frame", {
+    create("Frame", {
         Parent = Main,
         BackgroundColor3 = Theme.Accent,
         Position = UDim2.new(0, 0, 0, 48),
@@ -343,7 +342,7 @@ function Library:CreateWindow(cfg)
     }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
     addAccentStroke(avatarFrame, 1.5)
 
-    local titleLabel = create("TextLabel", {
+    create("TextLabel", {
         Parent = TopBar,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 54, 0, 7),
@@ -518,8 +517,8 @@ function Library:CreateWindow(cfg)
     end
 
     function Window:AddTab(tabCfg)
-        tabCfg = tabCfg || {}
-        local name = tabCfg.Title || "Tab"
+        tabCfg = tabCfg or {}
+        local name = tabCfg.Title or "Tab"
 
         local Button = create("TextButton", {
             Parent = Sidebar,
@@ -528,8 +527,8 @@ function Library:CreateWindow(cfg)
             BackgroundTransparency = 0.6,
             AutoButtonColor = false,
             Font = Enum.Font.GothamSemibold,
-            Text = (tabCfg.Icon and (tabCfg.Icon .. "  ") || "") .. name,
-            TextSize: 13,
+            Text = (tabCfg.Icon and (tabCfg.Icon .. "  ") or "") .. name,
+            TextSize = 13,
             TextColor3 = Theme.SubText,
             TextXAlignment = Enum.TextXAlignment.Left,
         }, { corner(8), create("UIPadding", { PaddingLeft = UDim.new(0, 14) }) })
@@ -566,7 +565,7 @@ function Library:CreateWindow(cfg)
         local function element(height)
             local f = create("Frame", {
                 Parent = Page,
-                Size = UDim2.new(1, 0, 0, height || 40),
+                Size = UDim2.new(1, 0, 0, height or 40),
                 BackgroundColor3 = Theme.Element,
                 BackgroundTransparency = uiElementAlpha,
             }, { corner(10), stroke(Theme.Stroke, 1, 0.25) })
@@ -579,7 +578,7 @@ function Library:CreateWindow(cfg)
                 Parent = parent,
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 14, 0, 0),
-                Size = UDim2.new(1, -28 - (rightPad || 0), 0, 40),
+                Size = UDim2.new(1, -28 - (rightPad or 0), 0, 40),
                 Font = Enum.Font.Gotham,
                 Text = text,
                 TextSize = 13,
@@ -618,9 +617,9 @@ function Library:CreateWindow(cfg)
         end
 
         function Tab:AddButton(c)
-            c = c || {}
+            c = c or {}
             local f = element(40)
-            titleLabel(f, c.Title || "Button", 24)
+            titleLabel(f, c.Title or "Button", 24)
             create("TextLabel", {
                 Parent = f,
                 BackgroundTransparency = 1,
@@ -648,9 +647,9 @@ function Library:CreateWindow(cfg)
         end
 
         function Tab:AddToggle(c)
-            c = c || {}
+            c = c or {}
             local f = element(40)
-            titleLabel(f, c.Title || "Toggle", 54)
+            titleLabel(f, c.Title or "Toggle", 54)
             local pill = create("Frame", {
                 Parent = f,
                 AnchorPoint = Vector2.new(1, 0.5),
@@ -674,9 +673,9 @@ function Library:CreateWindow(cfg)
 
             local obj = { Value = c.Default and true or false }
             local function render()
-                tween(pill, 0.18, { BackgroundColor3 = obj.Value and Theme.Accent || Theme.Off })
+                tween(pill, 0.18, { BackgroundColor3 = obj.Value and Theme.Accent or Theme.Off })
                 tween(knob, 0.18, {
-                    Position = obj.Value and UDim2.new(1, -19, 0.5, 0) || UDim2.new(0, 3, 0.5, 0),
+                    Position = obj.Value and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
                 }, Enum.EasingStyle.Back)
             end
             function obj:Set(v, silent)
@@ -696,10 +695,6 @@ function Library:CreateWindow(cfg)
 
     return Window
 end
-
--- =====================================================================
--- LOGIC HALLOWEEN: ESP DOOR, TRACER, INSTANT INTERACT
--- =====================================================================
 
 local halloweenESPEnabled = false
 local halloweenTracerEnabled = false
@@ -797,10 +792,6 @@ track(Workspace.DescendantAdded:Connect(function(v)
         v.HoldDuration = 0
     end
 end))
-
--- =====================================================================
--- XÂY DỰNG GIAO DIỆN TABS
--- =====================================================================
 
 local Window = Library:CreateWindow({
     Title = "JJS Spooky Hub",
