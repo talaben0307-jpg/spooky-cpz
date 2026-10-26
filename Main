@@ -1,5 +1,5 @@
 --[[
-    CPZ Menu / JJS Halloween Event Hub (Standalone, No Key System - Fixed)
+    CPZ Menu / JJS Halloween Event Hub (Standalone - Fixed & Optimized)
 ]]
 
 local Players = game:GetService("Players")
