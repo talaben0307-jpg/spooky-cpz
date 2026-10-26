@@ -1,0 +1,852 @@
+--[[
+    CPZ Menu / JJS Halloween Event Hub (Standalone, No Key System)
+]]
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+local env = (getgenv and getgenv()) or _G
+if env.JJSHalloweenCleanup then
+    pcall(env.JJSHalloweenCleanup)
+end
+
+local parentGui = (gethui and gethui()) or CoreGui
+local connections, cleanups, spinners = {}, {}, {}
+
+local function track(conn)
+    table.insert(connections, conn)
+    return conn
+end
+
+local function onCleanup(fn)
+    table.insert(cleanups, fn)
+end
+
+env.JJSHalloweenCleanup = function()
+    for _, c in ipairs(connections) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(connections)
+    for _, fn in ipairs(cleanups) do
+        pcall(fn)
+    end
+    table.clear(cleanups)
+    table.clear(spinners)
+    env.JJSHalloweenCleanup = nil
+end
+
+-- ===== Chủ đề Halloween Theme (Cam bí ngô & Đen ma quái) =====
+local Theme = {
+    Background = Color3.fromRGB(15, 12, 10),
+    Panel = Color3.fromRGB(25, 18, 14),
+    PanelAlt = Color3.fromRGB(38, 26, 18),
+    Element = Color3.fromRGB(32, 22, 16),
+    ElementHover = Color3.fromRGB(48, 34, 24),
+    Off = Color3.fromRGB(60, 45, 35),
+    Stroke = Color3.fromRGB(90, 50, 25),
+    Accent = Color3.fromRGB(255, 115, 0),
+    AccentDim = Color3.fromRGB(130, 55, 0),
+    Accent2 = Color3.fromRGB(255, 170, 0),
+    Text = Color3.fromRGB(245, 235, 225),
+    SubText = Color3.fromRGB(170, 145, 130),
+    Danger = Color3.fromRGB(255, 60, 60),
+    Good = Color3.fromRGB(60, 230, 110),
+    Warn = Color3.fromRGB(255, 190, 50),
+}
+
+local ACCENT_GRADIENT = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(0.5, Theme.Accent2),
+    ColorSequenceKeypoint.new(1, Theme.Accent),
+})
+
+local function create(class, props, children)
+    local inst = Instance.new(class)
+    if inst:IsA("GuiObject") then
+        inst.BorderSizePixel = 0
+    end
+    local parent
+    for k, v in pairs(props or {}) do
+        if k == "Parent" then
+            parent = v
+        else
+            inst[k] = v
+        end
+    end
+    for _, child in ipairs(children or {}) do
+        child.Parent = inst
+    end
+    inst.Parent = parent
+    return inst
+end
+
+local function tween(inst, duration, props, style)
+    local tw = TweenService:Create(
+        inst,
+        TweenInfo.new(duration, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        props
+    )
+    tw:Play()
+    return tw
+end
+
+local function corner(radius)
+    return create("UICorner", { CornerRadius = UDim.new(0, radius) })
+end
+
+local function stroke(color, thickness, transparency)
+    return create("UIStroke", {
+        Color = color,
+        Thickness = thickness or 1,
+        Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+end
+
+local function addAccentStroke(parent, thickness)
+    local s = create("UIStroke", {
+        Parent = parent,
+        Thickness = thickness,
+        Color = Color3.new(1, 1, 1),
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+    local g = create("UIGradient", { Parent = s, Color = ACCENT_GRADIENT })
+    table.insert(spinners, g)
+    return s
+end
+
+do
+    local lastSpin = 0
+    track(RunService.Heartbeat:Connect(function()
+        local now = os.clock()
+        if now - lastSpin < 0.05 then return end
+        lastSpin = now
+        local rot = (now * 60) % 360
+        for i = #spinners, 1, -1 do
+            local g = spinners[i]
+            if not g.Parent then
+                table.remove(spinners, i)
+            else
+                local sg = g:FindFirstAncestorOfClass("ScreenGui")
+                if sg and sg.Enabled then
+                    g.Rotation = rot
+                end
+            end
+        end
+    end))
+end
+
+local function isPress(input)
+    return input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMove(input)
+    return input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function makeDraggable(handle, target, scaleObj)
+    local dragging, moved = false, false
+    local startPos, startInput
+
+    handle.InputBegan:Connect(function(input)
+        if isPress(input) then
+            dragging = true
+            moved = false
+            startInput = input.Position
+            startPos = target.Position
+        end
+    end)
+    track(UserInputService.InputChanged:Connect(function(input)
+        if dragging and isMove(input) then
+            local delta = input.Position - startInput
+            if delta.Magnitude > 5 then
+                moved = true
+            end
+            if moved then
+                local s = scaleObj and scaleObj.Scale or 1
+                target.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + delta.X / s,
+                    startPos.Y.Scale, startPos.Y.Offset + delta.Y / s
+                )
+            end
+        end
+    end))
+    track(UserInputService.InputEnded:Connect(function(input)
+        if isPress(input) then
+            dragging = false
+        end
+    end))
+
+    return function()
+        return moved
+    end
+end
+
+local NotifGui = create("ScreenGui", {
+    Name = "HalloweenNotifs",
+    ResetOnSpawn = false,
+    DisplayOrder = 100,
+    Parent = parentGui,
+})
+local NotifHolder = create("Frame", {
+    Parent = NotifGui,
+    BackgroundTransparency = 1,
+    AnchorPoint = Vector2.new(1, 1),
+    Position = UDim2.new(1, -16, 1, -16),
+    Size = UDim2.new(0, 290, 1, -32),
+}, {
+    create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+    }),
+})
+onCleanup(function() NotifGui:Destroy() end)
+
+local Library = {}
+local uiElements = {}
+local uiElementAlpha = 0.69
+
+function Library:Notify(cfg)
+    cfg = cfg or {}
+    local card = create("CanvasGroup", {
+        Parent = NotifHolder,
+        BackgroundColor3 = Theme.Panel,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        GroupTransparency = 1,
+    }, {
+        corner(10),
+        stroke(Theme.Accent, 1, 0.55),
+        create("UIPadding", {
+            PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10),
+            PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 12),
+        }),
+        create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }),
+        create("TextLabel", {
+            LayoutOrder = 1,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 16),
+            Font = Enum.Font.GothamBold,
+            Text = "🎃 " .. (cfg.Title || "Thông báo"),
+            TextSize = 13,
+            TextColor3 = Theme.Accent,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }),
+        create("TextLabel", {
+            LayoutOrder = 2,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Font = Enum.Font.Gotham,
+            Text = cfg.Content || "",
+            TextSize = 12,
+            TextWrapped = true,
+            TextColor3 = Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }),
+    })
+    tween(card, 0.25, { GroupTransparency = 0 })
+    task.delay(cfg.Duration || 3, function()
+        if card.Parent then
+            tween(card, 0.3, { GroupTransparency = 1 }).Completed:Wait()
+            card:Destroy()
+        end
+    end)
+end
+
+function Library:CreateWindow(cfg)
+    cfg = cfg || {}
+    local title = cfg.Title || "JJS Halloween Hub"
+    local subTitle = cfg.SubTitle || "Spooky Edition"
+    local menuKey = cfg.MenuKey || Enum.KeyCode.F
+
+    local visible = true
+    local visToken = 0
+
+    local MainGui = create("ScreenGui", {
+        Name = "HalloweenHub", ResetOnSpawn = false, Enabled = true, Parent = parentGui,
+    })
+    local FloatGui = create("ScreenGui", {
+        Name = "HalloweenFloat", ResetOnSpawn = false, Enabled = false, Parent = parentGui,
+    })
+    local usePill = cfg.UsePill ~= false
+    local PillGui = create("ScreenGui", {
+        Name = "HalloweenTopPill", ResetOnSpawn = false, IgnoreGuiInset = true,
+        DisplayOrder = 50, Enabled = true, Parent = parentGui,
+    })
+    onCleanup(function()
+        MainGui:Destroy()
+        FloatGui:Destroy()
+        PillGui:Destroy()
+    end)
+
+    local Main = create("Frame", {
+        Name = "Main",
+        Parent = MainGui,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, 560, 0, 380),
+        BackgroundColor3 = Theme.Background,
+        BackgroundTransparency = 0.05,
+    }, {
+        corner(14),
+    })
+    addAccentStroke(Main, 2)
+
+    local Scale = create("UIScale", { Parent = Main })
+    local baseScale = 1
+    local function updateScale()
+        local cam = Workspace.CurrentCamera
+        if cam then
+            local vs = cam.ViewportSize
+            baseScale = math.clamp(math.min(vs.X / 620, vs.Y / 440), 0.55, 1)
+            Scale.Scale = baseScale
+        end
+    end
+    updateScale()
+    if Workspace.CurrentCamera then
+        track(Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale))
+    end
+
+    local TopBar = create("Frame", {
+        Parent = Main,
+        BackgroundColor3 = Theme.PanelAlt,
+        Size = UDim2.new(1, 0, 0, 48),
+    }, {
+        corner(14),
+    })
+    
+    local divider = create("Frame", {
+        Parent = Main,
+        BackgroundColor3 = Theme.Accent,
+        Position = UDim2.new(0, 0, 0, 48),
+        Size = UDim2.new(1, 0, 0, 1),
+    })
+
+    local headshot = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(LocalPlayer.UserId)
+    local avatarFrame = create("ImageLabel", {
+        Parent = TopBar,
+        BackgroundColor3 = Theme.Element,
+        Position = UDim2.new(0, 12, 0.5, -16),
+        Size = UDim2.new(0, 32, 0, 32),
+        Image = headshot,
+        ScaleType = Enum.ScaleType.Crop,
+    }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    addAccentStroke(avatarFrame, 1.5)
+
+    local titleLabel = create("TextLabel", {
+        Parent = TopBar,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 54, 0, 7),
+        Size = UDim2.new(0, 200, 0, 19),
+        Font = Enum.Font.GothamBold,
+        Text = "🎃 " .. title,
+        TextSize = 15,
+        TextColor3 = Theme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+    create("TextLabel", {
+        Parent = TopBar,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 54, 0, 26),
+        Size = UDim2.new(0, 200, 0, 16),
+        Font = Enum.Font.Gotham,
+        Text = subTitle,
+        TextSize = 11,
+        TextColor3 = Theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    local function topButton(text, xOff, hoverColor)
+        local b = create("TextButton", {
+            Parent = TopBar,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, xOff, 0.5, 0),
+            Size = UDim2.new(0, 28, 0, 28),
+            BackgroundColor3 = Theme.Element,
+            Font = Enum.Font.GothamBold,
+            Text = text,
+            TextSize = 14,
+            TextColor3 = Theme.Text,
+            AutoButtonColor = false,
+        }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+        b.MouseEnter:Connect(function() tween(b, 0.15, { BackgroundColor3 = hoverColor }) end)
+        b.MouseLeave:Connect(function() tween(b, 0.15, { BackgroundColor3 = Theme.Element }) end)
+        return b
+    end
+    local CloseBtn = topButton("✕", -12, Theme.Danger)
+    local MinBtn = topButton("–", -46, Theme.ElementHover)
+
+    makeDraggable(TopBar, Main, Scale)
+
+    local Sidebar = create("ScrollingFrame", {
+        Parent = Main,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 12, 0, 60),
+        Size = UDim2.new(0, 144, 1, -72),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 0,
+    }, {
+        create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }),
+    })
+
+    local Content = create("Frame", {
+        Parent = Main,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 172, 0, 60),
+        Size = UDim2.new(1, -184, 1, -72),
+        ClipsDescendants = true,
+    })
+    create("Frame", {
+        Parent = Main,
+        BackgroundColor3 = Theme.Stroke,
+        Position = UDim2.new(0, 164, 0, 60),
+        Size = UDim2.new(0, 1, 1, -72),
+    })
+
+    local FloatBtn = create("TextButton", {
+        Parent = FloatGui,
+        BackgroundColor3 = Theme.Background,
+        Position = UDim2.new(0, 50, 0, 200),
+        Size = UDim2.new(0, 56, 0, 56),
+        Font = Enum.Font.GothamBold,
+        Text = "PUMPKIN",
+        TextSize = 11,
+        TextColor3 = Theme.Accent,
+        AutoButtonColor = false,
+    }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    addAccentStroke(FloatBtn, 2)
+    local floatWasDragged = makeDraggable(FloatBtn, FloatBtn)
+
+    local function setVisible(state)
+        visible = state
+        visToken += 1
+        local my = visToken
+        if state then
+            FloatGui.Enabled = false
+            MainGui.Enabled = true
+            Scale.Scale = baseScale * 0.9
+            tween(Scale, 0.28, { Scale = baseScale }, Enum.EasingStyle.Back)
+        else
+            tween(Scale, 0.15, { Scale = baseScale * 0.9 })
+            task.delay(0.16, function()
+                if my == visToken then
+                    MainGui.Enabled = false
+                    FloatGui.Enabled = not usePill
+                end
+            end)
+        end
+    end
+
+    local Pill = create("Frame", {
+        Parent = PillGui,
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 8),
+        Size = UDim2.new(0, 190, 0, 36),
+        BackgroundColor3 = Theme.Background,
+    }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    addAccentStroke(Pill, 1.5)
+
+    local PillMove = create("TextButton", {
+        Parent = Pill,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 6, 0, 0),
+        Size = UDim2.new(0, 26, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = "🎃",
+        TextSize = 16,
+        TextColor3 = Theme.Accent,
+        AutoButtonColor = false,
+    })
+    makeDraggable(PillMove, Pill)
+
+    local PillBtn = create("TextButton", {
+        Parent = Pill,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 34, 0, 0),
+        Size = UDim2.new(1, -34, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = "JJS HALLOWEEN",
+        TextSize = 12,
+        TextColor3 = Theme.Text,
+        AutoButtonColor = false,
+    })
+    PillBtn.MouseButton1Click:Connect(function()
+        setVisible(not visible)
+    end)
+
+    MinBtn.MouseButton1Click:Connect(function() setVisible(false) end)
+    FloatBtn.MouseButton1Click:Connect(function()
+        if floatWasDragged() then return end
+        setVisible(true)
+    end)
+    CloseBtn.MouseButton1Click:Connect(function()
+        if env.JJSHalloweenCleanup then env.JJSHalloweenCleanup() end
+    end)
+
+    track(UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.KeyCode == menuKey then
+            setVisible(not visible)
+        end
+    end))
+
+    local Window = {}
+    local tabs = {}
+
+    local function selectTab(tab)
+        for _, t in ipairs(tabs) do
+            local active = (t == tab)
+            t.Active = active
+            t.Page.Visible = active
+            tween(t.Button, 0.15, {
+                BackgroundColor3 = active and Theme.AccentDim or Theme.Element,
+                BackgroundTransparency = active and 0.2 or 0.6,
+                TextColor3 = active and Theme.Accent2 or Theme.SubText,
+            })
+            tween(t.Indicator, 0.15, { Size = UDim2.new(0, 3, 0, active and 20 or 0) })
+        end
+    end
+
+    function Window:AddTab(tabCfg)
+        tabCfg = tabCfg || {}
+        local name = tabCfg.Title || "Tab"
+
+        local Button = create("TextButton", {
+            Parent = Sidebar,
+            Size = UDim2.new(1, -8, 0, 36),
+            BackgroundColor3 = Theme.Element,
+            BackgroundTransparency = 0.6,
+            AutoButtonColor = false,
+            Font = Enum.Font.GothamSemibold,
+            Text = (tabCfg.Icon and (tabCfg.Icon .. "  ") || "") .. name,
+            TextSize: 13,
+            TextColor3 = Theme.SubText,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, { corner(8), create("UIPadding", { PaddingLeft = UDim.new(0, 14) }) })
+
+        local Indicator = create("Frame", {
+            Parent = Button,
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, -6, 0.5, 0),
+            Size = UDim2.new(0, 3, 0, 0),
+            BackgroundColor3 = Theme.Accent,
+        }, { corner(2) })
+
+        local Page = create("ScrollingFrame", {
+            Parent = Content,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Visible = false,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Theme.Accent,
+            ScrollingDirection = Enum.ScrollingDirection.Y,
+        }, {
+            create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }),
+            create("UIPadding", { PaddingRight = UDim.new(0, 10), PaddingBottom = UDim.new(0, 8) }),
+        })
+
+        local tab = { Button = Button, Indicator = Indicator, Page = Page, Active = false }
+        table.insert(tabs, tab)
+
+        Button.MouseButton1Click:Connect(function() selectTab(tab) end)
+        if #tabs == 1 then selectTab(tab) end
+
+        local function element(height)
+            local f = create("Frame", {
+                Parent = Page,
+                Size = UDim2.new(1, 0, 0, height || 40),
+                BackgroundColor3 = Theme.Element,
+                BackgroundTransparency = uiElementAlpha,
+            }, { corner(10), stroke(Theme.Stroke, 1, 0.25) })
+            table.insert(uiElements, f)
+            return f
+        end
+
+        local function titleLabel(parent, text, rightPad)
+            return create("TextLabel", {
+                Parent = parent,
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 14, 0, 0),
+                Size = UDim2.new(1, -28 - (rightPad || 0), 0, 40),
+                Font = Enum.Font.Gotham,
+                Text = text,
+                TextSize = 13,
+                TextWrapped = true,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            })
+        end
+
+        local Tab = {}
+
+        function Tab:AddSection(text)
+            local row = create("Frame", {
+                Parent = Page,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 26),
+            })
+            create("Frame", {
+                Parent = row,
+                BackgroundColor3 = Theme.Accent,
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, 0, 0.5, -1),
+                Size = UDim2.new(0, 3, 0, 14),
+            }, { corner(2) })
+            create("TextLabel", {
+                Parent = row,
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 12, 0, 0),
+                Size = UDim2.new(1, -12, 1, -2),
+                Font = Enum.Font.GothamBold,
+                Text = string.upper(text),
+                TextSize = 11,
+                TextColor3 = Theme.Accent,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            })
+        end
+
+        function Tab:AddButton(c)
+            c = c || {}
+            local f = element(40)
+            titleLabel(f, c.Title || "Button", 24)
+            create("TextLabel", {
+                Parent = f,
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -14, 0.5, 0),
+                Size = UDim2.new(0, 20, 0, 20),
+                Font = Enum.Font.GothamBold,
+                Text = "›",
+                TextSize = 22,
+                TextColor3 = Theme.Accent,
+            })
+            local hit = create("TextButton", {
+                Parent = f, Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1, Text = "", AutoButtonColor = false,
+            })
+            hit.MouseEnter:Connect(function() tween(f, 0.15, { BackgroundColor3 = Theme.ElementHover }) end)
+            hit.MouseLeave:Connect(function() tween(f, 0.15, { BackgroundColor3 = Theme.Element }) end)
+            hit.MouseButton1Click:Connect(function()
+                tween(f, 0.08, { BackgroundColor3 = Theme.AccentDim })
+                task.delay(0.12, function()
+                    if f.Parent then tween(f, 0.15, { BackgroundColor3 = Theme.ElementHover }) end
+                end)
+                if c.Callback then task.spawn(pcall, c.Callback) end
+            end)
+        end
+
+        function Tab:AddToggle(c)
+            c = c || {}
+            local f = element(40)
+            titleLabel(f, c.Title || "Toggle", 54)
+            local pill = create("Frame", {
+                Parent = f,
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -14, 0.5, 0),
+                Size = UDim2.new(0, 42, 0, 22),
+                BackgroundColor3 = Theme.Off,
+            }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            local knob = create("Frame", {
+                Parent = pill,
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, 3, 0.5, 0),
+                Size = UDim2.new(0, 16, 0, 16),
+                BackgroundColor3 = Theme.Text,
+            }, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            local hit = create("TextButton", {
+                Parent = f, Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1, Text = "", AutoButtonColor = false,
+            })
+            hit.MouseEnter:Connect(function() tween(f, 0.15, { BackgroundColor3 = Theme.ElementHover }) end)
+            hit.MouseLeave:Connect(function() tween(f, 0.15, { BackgroundColor3 = Theme.Element }) end)
+
+            local obj = { Value = c.Default and true or false }
+            local function render()
+                tween(pill, 0.18, { BackgroundColor3 = obj.Value and Theme.Accent || Theme.Off })
+                tween(knob, 0.18, {
+                    Position = obj.Value and UDim2.new(1, -19, 0.5, 0) || UDim2.new(0, 3, 0.5, 0),
+                }, Enum.EasingStyle.Back)
+            end
+            function obj:Set(v, silent)
+                obj.Value = v and true or false
+                render()
+                if not silent and c.Callback then
+                    task.spawn(pcall, c.Callback, obj.Value)
+                end
+            end
+            hit.MouseButton1Click:Connect(function() obj:Set(not obj.Value) end)
+            render()
+            return obj
+        end
+
+        return Tab
+    end
+
+    return Window
+end
+
+-- =====================================================================
+-- LOGIC HALLOWEEN: ESP DOOR, TRACER, INSTANT INTERACT
+-- =====================================================================
+
+local halloweenESPEnabled = false
+local halloweenTracerEnabled = false
+local halloweenHighlights = {}
+local halloweenTracers = {}
+
+local function clearHalloweenHighlights()
+    for _, h in ipairs(halloweenHighlights) do if h and h.Parent then h:Destroy() end end
+    table.clear(halloweenHighlights)
+end
+
+local function clearHalloweenTracers()
+    for _, line in ipairs(halloweenTracers) do if line and line.Parent then line:Destroy() end end
+    table.clear(halloweenTracers)
+end
+
+local function scanHalloweenDoors()
+    if not halloweenESPEnabled then return end
+    clearHalloweenHighlights()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == "HalloweenDoor" and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            local h = Instance.new("Highlight")
+            h.Name = "HalloweenDoorHighlight"
+            h.Adornee = obj
+            h.FillColor = Color3.fromRGB(255, 100, 25)
+            h.OutlineColor = Color3.fromRGB(255, 220, 90)
+            h.FillTransparency = 0.5
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.Parent = parentGui
+            table.insert(halloweenHighlights, h)
+        end
+    end
+end
+
+track(RunService.RenderStepped:Connect(function()
+    clearHalloweenTracers()
+    if halloweenTracerEnabled then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local rootPos = char.HumanoidRootPart.Position
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "HalloweenDoor" then
+                    local targetPos = nil
+                    if obj:IsA("BasePart") then
+                        targetPos = obj.Position
+                    elseif obj:IsA("Model") and obj.PrimaryPart then
+                        targetPos = obj.PrimaryPart.Position
+                    elseif obj:IsA("Model") then
+                        local p = obj:FindFirstChildWhichIsA("BasePart")
+                        if p then targetPos = p.Position end
+                    end
+
+                    if targetPos and (rootPos - targetPos).Magnitude < 400 then
+                        local part = Instance.new("Part")
+                        part.Size = Vector3.new(0.1, 0.1, (rootPos - targetPos).Magnitude)
+                        part.CFrame = CFrame.new(rootPos, targetPos) * CFrame.new(0, 0, -part.Size.Z / 2)
+                        part.Anchored = true
+                        part.CanCollide = false
+                        part.Transparency = 0.3
+                        part.BrickColor = BrickColor.new("Neon orange")
+                        part.Material = Enum.Material.Neon
+                        part.Parent = workspace
+                        table.insert(halloweenTracers, part)
+                    end
+                end
+            end
+        end
+    end
+end))
+
+track(Workspace.DescendantAdded:Connect(function(v)
+    if halloweenESPEnabled and v.Name == "HalloweenDoor" and (v:IsA("Model") or v:IsA("BasePart")) then
+        task.wait(0.1)
+        scanHalloweenDoors()
+    end
+end))
+
+track(Workspace.DescendantRemoving:Connect(function(v)
+    if halloweenESPEnabled and v.Name == "HalloweenDoor" then
+        task.wait(0.1)
+        scanHalloweenDoors()
+    end
+end))
+
+local function applySkipTime()
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            v.HoldDuration = 0
+        end
+    end
+end
+
+track(Workspace.DescendantAdded:Connect(function(v)
+    if v:IsA("ProximityPrompt") then
+        v.HoldDuration = 0
+    end
+end))
+
+-- =====================================================================
+-- XÂY DỰNG GIAO DIỆN TABS
+-- =====================================================================
+
+local Window = Library:CreateWindow({
+    Title = "JJS Spooky Hub",
+    SubTitle = "Halloween Event",
+    MenuKey = Enum.KeyCode.F,
+})
+
+local tSpooky = Window:AddTab({ Title = "Sự Kiện", Icon = "🎃" })
+
+tSpooky:AddSection("Chức năng Halloween")
+
+tSpooky:AddToggle({
+    Title = "Bật/Tắt ESP Cửa (HalloweenDoor)",
+    Default = false,
+    Callback = function(v)
+        halloweenESPEnabled = v
+        if v then
+            scanHalloweenDoors()
+            Library:Notify({ Title = "Halloween", Content = "Đã bật ESP Cửa sự kiện!", Duration = 2 })
+        else
+            clearHalloweenHighlights()
+        end
+    end,
+})
+
+tSpooky:AddToggle({
+    Title = "Bật/Tắt Tracer Chỉ Đường Tới Cửa",
+    Default = false,
+    Callback = function(v)
+        halloweenTracerEnabled = v
+        if not v then
+            clearHalloweenTracers()
+        end
+    end,
+})
+
+tSpooky:AddButton({
+    Title = "⚡ Instant Interact (Tương tác tức thì 0s)",
+    Callback = function()
+        applySkipTime()
+        Library:Notify({ Title = "Halloween", Content = "Đã ép tất cả ProximityPrompt thành 0 giây giữ!", Duration = 3 })
+    end,
+})
+
+Library:Notify({
+    Title = "JJS Spooky Hub",
+    Content = "Script đã tải thành công! Nhấn phím F để ẩn/hiện menu.",
+    Duration = 4,
+})
